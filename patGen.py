@@ -1,4 +1,4 @@
-__version__ = '1.0'
+__version__ = '1.1'
 
 # import os
 # import warnings
@@ -41,6 +41,12 @@ def cli_help() -> argparse.Namespace:
                         choices=['Chroma3380P'],
                         help='select ate tester model',
                         )
+    parser.add_argument('--period_ns',
+                        '-p',
+                        default='240',
+                        type=int,
+                        help='period value for pattern running, unit ns. default 240',
+                        )
     parser.add_argument("--version",
                         action='version',
                         version=__version__,
@@ -56,12 +62,12 @@ def parse_reg_file(handle: open) -> list:
     reg_wr_list = []
     with handle as f:
         for line in f.readlines():
-            # if match(r'^\s*#', line):
-            #     continue
-            # elif match(r'^\s*//', line):
-            #     continue
-            if match(r'^\s*(set|read)_register_data', line):
-                reg = match(r'(set|read)_register_data\((\w+)\s*,\s*(\w+)\)', line)
+            if match(r'^\s*#', line):
+                continue
+            elif match(r'^\s*//', line):
+                continue
+            elif match(r'^\s*(set|read)_register_data\s*\(', line):
+                reg = match(r'(set|read)_register_data\s*\((\w+)\s*,\s*(\w+)\)', line)
 
                 reg_wr_str = "%s,%s" % (reg.group(2), reg.group(3))
                 if reg.group(1) == 'set':
@@ -70,6 +76,12 @@ def parse_reg_file(handle: open) -> list:
                     reg_wr_str = 'r,' + reg_wr_str
 
                 reg_wr_list.append(reg_wr_str)
+            elif match(r'^\s*WAIT\s*\(', line):
+                reg = match(r'WAIT\s*\(\s*(\d+)\s*([uUmMsS]+)\s*\)', line)
+
+                reg_idle_str = "i,%s,%s" % (reg.group(1), reg.group(2))
+
+                reg_wr_list.append(reg_idle_str)
 
     return reg_wr_list
 
@@ -83,10 +95,13 @@ def hex2bin(hex_num: str, bit_count: int) -> str:
     return bin_num
 
 
-def update_body_content(file_content: list, reg_act: str, reg_addr_bin: str, reg_data_bin: str) -> list:
+def update_body_content(file_content: list, reg_act: str, reg_addr: str, reg_data: str) -> list:
     """
     Update address and data of destined reg
     """
+
+    reg_addr_bin = hex2bin(reg_addr, 8)
+    reg_data_bin = hex2bin(reg_data, 16)
 
     addr_bin_list = []
     for bit in reg_addr_bin:
@@ -98,7 +113,13 @@ def update_body_content(file_content: list, reg_act: str, reg_addr_bin: str, reg
 
     update_file_content = []
     for line in file_content:
-        if line.find('a') + line.find('d') == -2:
+        if line.find('Write') > 0:
+            replace_str = "Write %s %s" % (reg_addr, reg_data)
+            line = line.replace('Write', replace_str, 1)
+        elif line.find('Read') > 0:
+            replace_str = "Read %s %s" % (reg_addr, reg_data)
+            line = line.replace('Read', replace_str, 1)
+        elif line.find('a') + line.find('d') == -2:
             pass
         elif match(r'^\s*\*[\w\s]*a', line):
             updated_bit = addr_bin_list.pop(0)
@@ -121,7 +142,26 @@ def update_body_content(file_content: list, reg_act: str, reg_addr_bin: str, reg
     return update_file_content
 
 
-def pat_content(protocol_type: str, test_item: str, reg_list: list, ate_model: str) -> list:
+def get_rpt_cnt(time_value: int, time_unit: str, period_ns: int) -> int:
+    """
+    Get repeat count by time value and its unit.
+    """
+    unit = time_unit.lower()
+
+    if unit == 'ms':
+        factor = 1000000
+    elif unit == 'us':
+        factor = 1000
+    elif unit == 's':
+        factor = 1000000000
+    else:
+        raise ValueError("unit '%s' not support !!!" % unit)
+
+    return time_value * factor // period_ns
+
+
+def pat_content(protocol_type: str, test_item: str, reg_list: list, ate_model: str, period_ns: int, max_rpt: int) \
+        -> list:
     """
     Generating pattern content according to reg_list and protocol type.
     """
@@ -141,21 +181,50 @@ def pat_content(protocol_type: str, test_item: str, reg_list: list, ate_model: s
             pat_file_content.append(line)
 
     # take pattern body
-    for reg_wr in reg_list:
-        reg_act, reg_addr, reg_data = reg_wr.split(',')
+    for reg_cmd in reg_list:
 
-        reg_addr_bin = hex2bin(reg_addr, 8)
-        reg_data_bin = hex2bin(reg_data, 16)
+        reg_act, reg_param2, reg_param3 = reg_cmd.split(',')
 
-        if reg_act == 'w':
-            body_handle = open(pat_template_path / (protocol_type + '_Write.pat'), 'r')
-        elif reg_act == 'r':
-            body_handle = open(pat_template_path / (protocol_type + '_Read.pat'), 'r')
+        if reg_act == 'i':
+            idle_rpt_cnt = get_rpt_cnt(int(reg_param2), reg_param3, period_ns)
+            idle_line_cnt = 1
+            if idle_rpt_cnt > max_rpt:
+                idle_line_cnt += (idle_rpt_cnt // max_rpt)
+                idle_rpt_cnt %= max_rpt
+
+            idle_content = []
+            idle_tmp_file = pat_template_path / (protocol_type + '_Idle.pat')
+
+            with open(idle_tmp_file, 'r') as idle_handle:
+                for line in idle_handle.readlines():
+                    if line.find('Count') > 0:
+
+                        # solve the problem that the repeat count greater than tester pattern repeat count high limit.
+                        if idle_line_cnt > 1:
+                            max_rpt_line = line.replace('Count', str(max_rpt), 1)
+                            for i in range(1, idle_line_cnt):
+                                idle_content.append(max_rpt_line)
+
+                        if idle_rpt_cnt > 1:
+                            line = line.replace('Count', str(idle_rpt_cnt), 1)
+                            idle_content.append(line)
+
+            if idle_content:
+                pat_file_content.extend(idle_content)
+            else:
+                raise AssertionError("Not find 'Count' in %s file !!!" % idle_tmp_file)
+
         else:
-            raise ValueError("reg_act '%s' is illegal !!!" % reg_act)
-        body_content = update_body_content(body_handle.readlines(), reg_act, reg_addr_bin, reg_data_bin)
 
-        pat_file_content.extend(body_content)
+            if reg_act == 'w':
+                body_handle = open(pat_template_path / (protocol_type + '_Write.pat'), 'r')
+            elif reg_act == 'r':
+                body_handle = open(pat_template_path / (protocol_type + '_Read.pat'), 'r')
+            else:
+                raise ValueError("reg_act '%s' is illegal !!!" % reg_act)
+            body_content = update_body_content(body_handle.readlines(), reg_act, reg_param2, reg_param3)
+
+            pat_file_content.extend(body_content)
 
     # take pattern tail
     with open(pat_template_path / (protocol_type + '_Tail.pat'), 'r') as tail_handle:
@@ -184,7 +253,7 @@ def pat_output(file_content: list, file_path: Path, file_name: str) -> bool:
     return True
 
 
-def pat_gen_file(handle: open, output_path: Path, ate_model: str) -> bool:
+def pat_gen_file(handle: open, output_path: Path, ate_model: str, period_ns: int, max_rpt: int) -> bool:
     """
     Parse source file and generated corresponding pattern file.
     """
@@ -202,7 +271,7 @@ def pat_gen_file(handle: open, output_path: Path, ate_model: str) -> bool:
 
     reg_wr_list = parse_reg_file(handle)
 
-    pat_file_content = pat_content(protocol, test_item, reg_wr_list, ate_model)
+    pat_file_content = pat_content(protocol, test_item, reg_wr_list, ate_model, period_ns, max_rpt)
 
     out_file_name = file_name
     if ate_model == "Chroma3380P":
@@ -213,13 +282,26 @@ def pat_gen_file(handle: open, output_path: Path, ate_model: str) -> bool:
     return proc_result
 
 
+def get_max_rpt(ate_model: str) -> int:
+    """
+    Get maximum value for pattern repeat by tester model.
+    """
+
+    if ate_model == 'Chroma3380P':
+        return 16777215
+    elif ate_model == 'V93K':
+        return 65535
+    else:
+        raise AttributeError("ate_model '%s' not support !!!" % ate_model)
+
+
 def proc_print(state: str):
     """
     Print for process
     """
 
     script_name = PurePath(__file__).stem
-    print('*'*10, script_name + ' => ' + state, '*'*10)
+    print('*' * 10, script_name + ' => ' + state, '*' * 10)
 
 
 if __name__ == '__main__':
@@ -227,6 +309,7 @@ if __name__ == '__main__':
     # parse args
     args = cli_help()
     proc_print('start')
+    pat_max_rpt = get_max_rpt(args.ate_model)
 
     out_dir = ''
     if args.out_dir:
@@ -240,7 +323,7 @@ if __name__ == '__main__':
     proc_print('files')
     if args.file:
         for file in args.file:
-            pat_gen_file(file, out_dir, args.ate_model)
+            pat_gen_file(file, out_dir, args.ate_model, args.period_ns, pat_max_rpt)
 
     proc_print('dir')
     if args.dir:
@@ -256,6 +339,6 @@ if __name__ == '__main__':
 
         for file in file_list:
             file_handle = open(file, 'r')
-            pat_gen_file(file_handle, out_dir, args.ate_model)
+            pat_gen_file(file_handle, out_dir, args.ate_model, args.period_ns, pat_max_rpt)
 
     proc_print('finished')
