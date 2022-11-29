@@ -1,0 +1,10 @@
+#Ignored all files.
+*
+
+#Excluded files as below.
+!*.py
+!*.md
+!/patGen/
+!/patGen/Chroma3380P/
+!/patGen/Chroma3380P/*.pat
+!.gitignore
