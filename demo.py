@@ -38,6 +38,7 @@
 # dir = str(temp.parent)
 # print(dir)
 # print(type(dir))
+# print(temp.parent.name)
 
 #####TODO:List usage
 # head_line = [
@@ -156,6 +157,9 @@
 # #####TODO:range usage
 # for i in range(10,0,-1):
 #     print(i)
+# with open("./README.md", 'r') as f:
+#     lines = f.readlines()
+# print("line count is {}".format(len(lines)))
 
 # #####TODO:tuple usage
 # demo_list = [1,3,5,7]
@@ -163,3 +167,20 @@
 # tuple_len = len(demo_tuple)
 # print(demo_tuple)
 # print(tuple_len)
+
+# #####TODO:zip usage
+a = "A,B,C,1,,\n"
+b = "a,b,c,None,2,\n"
+print(a.rstrip(',\n'))
+print(b.rstrip(',\n'))
+a = [str(x) for x in a.rstrip(',\n').split(',')]
+b = [str(x) for x in b.rstrip(',\n').split(',')]
+demo_list = ['-'.join(x) for x in zip(a, b)]
+print(demo_list)
+with open("./README.md", 'r') as f:
+    lines = f.readlines()
+for line in lines:
+    print(line)
+    item_list = [str(x) for x in line.split(' ')]
+    print(item_list)
+

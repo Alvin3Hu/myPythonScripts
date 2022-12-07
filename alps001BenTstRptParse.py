@@ -31,9 +31,9 @@ def cli_help() -> argparse.Namespace:
     parser.add_argument('--out_dir',
                         '-o',
                         type=Path,
-                        # default='source files directory',
                         metavar='DIR',
-                        help='output destination directory',
+                        help='output destination directory\n'
+                             'default: current work dir',
                         )
     parser.add_argument('--test_item',
                         '-t',
@@ -54,19 +54,6 @@ def cli_help() -> argparse.Namespace:
                         version=__version__,
                         )
     return parser.parse_args()
-
-
-def proc_print(state: str = None):
-    """
-    Print for process
-    """
-
-    proc_str = '*' * 20
-
-    if state:
-        proc_str += ("{} => {}".format(PurePath(__file__).stem, state))
-
-    print("{:*<100s}".format(proc_str))
 
 
 class BenchTestData:
@@ -326,12 +313,12 @@ class BenchTestData:
         report_line.add_data(min_delta)
 
         # store the report_line into report_database
-        head_item_count = self._LogLineContent.get_head_item_count()
         line_content = report_line.get_line_content_list()
+        self.__report_database.append(line_content)
 
-        if len(line_content) == head_item_count:
-            self.__report_database.append(line_content)
-        else:
+        # check if line_content item count equal headline
+        head_item_count = self._LogLineContent.get_head_item_count()
+        if not len(line_content) == head_item_count:
             print("WARN: data line content count '{}' less than headline '{}' in file '{}'!"
                   .format(len(line_content), head_item_count, file_path))
 
@@ -341,7 +328,7 @@ class BenchTestData:
         and store the info into the __report_database.
         """
         # TODO: finish the snr log parse.
-        print("WARN: not support yet!!")
+        print("WARN: test_item '{}' not support yet!!".format(self.__test_item))
 
     def add_log_file(self, file_path):
         """
@@ -351,6 +338,9 @@ class BenchTestData:
         log_file = Path(file_path).resolve()
         if log_file.exists() and log_file.is_file():
             self.__log_file_list.append(log_file)
+            print("MSG: load file {} successfully --".format(log_file))
+        else:
+            print("WARN: load file {} failed !!".format(log_file))
 
     def parse_log_files(self):
         """
@@ -380,26 +370,40 @@ class BenchTestData:
             for line in self.__report_database:
                 out_handler.writelines(','.join(line) + '\n')
 
+        print("MSG: generate {} file successfully --".format(self.__output_file))
+
+    @staticmethod
+    def state_print(state: str = None):
+        """
+        Print for process
+        """
+
+        proc_str = '*' * 20
+
+        if state:
+            proc_str += ("{} => {}".format(PurePath(__file__).stem, state))
+
+        print("{:*<100s}".format(proc_str))
+
 
 if __name__ == '__main__':
 
     debug_mode = False
     # record start of time
     start_time = time.time()
-    start_cpu_time = time.perf_counter()
     # parse args
     args = cli_help()
-    proc_print('start')
 
-    bench_test_data = BenchTestData(args.device_version, args.test_item, args.out_dir)
-    if debug_mode: print("DEBUG: output file is {}".format(bench_test_data.output_file))
+    proc = BenchTestData(args.device_version, args.test_item, args.out_dir)
 
-    proc_print('load files')
+    proc.state_print('start')
+
+    proc.state_print('load files')
     if args.file:
         for file in args.file:
-            bench_test_data.add_log_file(file)
+            proc.add_log_file(file)
 
-    proc_print('load files in dir')
+    proc.state_print('load files in dir')
     if args.dir:
         in_dir = args.dir
         if Path(in_dir).is_dir():
@@ -411,20 +415,18 @@ if __name__ == '__main__':
         [file_list.append(str(f)) for f in Path(in_dir).glob('*.txt')]
 
         for file in file_list:
-            bench_test_data.add_log_file(file)
+            proc.add_log_file(file)
 
-    proc_print('parse logs')
+    proc.state_print('parse logs')
 
-    bench_test_data.parse_log_files()
+    proc.parse_log_files()
 
-    proc_print('output report')
+    proc.state_print('output report')
 
-    bench_test_data.generate_report()
+    proc.generate_report()
 
-    proc_print('finished')
+    proc.state_print('finished')
 
     # Calc used time
     end_time = time.time()
-    end_cpu_time = time.perf_counter()
     print("MSG: used time is {:.6f} s.".format(end_time - start_time))
-    # print("MSG: CPU used time is {:.6f} s.".format(end_cpu_time - start_cpu_time))
