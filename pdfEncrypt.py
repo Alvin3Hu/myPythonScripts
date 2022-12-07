@@ -6,8 +6,8 @@ import warnings
 
 # global var definition
 warnings.filterwarnings("ignore")
-pdfFl = r'D:\ahu\02_office\whalemicro\鲸鱼微电子介绍_Advantest.pdf'
-plainText = "Advantest"
+pdfFl = r'E:\AhuWorkFiles\02_Office\01_Company\02_Introduction\鲸鱼微电子介绍_WanNianXin.pdf'
+plainText = "WanNianXin"
 outFlSffx = "Enc"
 debug = True
 debug = False
@@ -82,7 +82,7 @@ def pdfEncrypt(pdfFl: str, cipher: str, outFlSffx: str):
 
     for page in range(pdfReader.getNumPages()):
         pdfWriter.addPage(pdfReader.getPage(page))
-    pdfWriter.encrypt(cipher)  # 设置密码
+    pdfWriter.encrypt(cipher)  # setting password
     with open(outFl, 'wb') as out:
         pdfWriter.write(out)
 
