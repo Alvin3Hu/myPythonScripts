@@ -1,4 +1,4 @@
-__version__ = '1.0'
+__version__ = '1.1'
 
 import argparse
 import pathlib
@@ -139,6 +139,8 @@ class BenchTestData:
                        "LOG_SUFFIX",
                        "LOG_SIZE",
                        "LOG_CTIME",
+                       "0xEA_VALUE",
+                       "0xEB_VALUE",
                        ]
 
         @classmethod
@@ -234,13 +236,33 @@ class BenchTestData:
         match_wait = False
         with open(file_path, 'r') as log_handler:
             lines = log_handler.readlines()
+
+            # get 0xEA and 0xEB value
+            ea_value = ""
+            eb_value = ""
+            for line in lines:
+                if line.find('0xea') > 0:
+                    if match(r'^\s*\[Reg Read', line):
+                        read_reg = search(r'val:0x(\w+)', line)
+                        reg_hex_value = "{:0>4s}".format(read_reg.group(1))
+                        ea_value = '0x' + reg_hex_value.upper()
+
+                if line.find('0xeb') > 0:
+                    if match(r'^\s*\[Reg Read', line):
+                        read_reg = search(r'val:0x(\w+)', line)
+                        reg_hex_value = "{:0>4s}".format(read_reg.group(1))
+                        eb_value = '0x' + reg_hex_value.upper()
+
+            report_line.add_data(ea_value)
+            report_line.add_data(eb_value)
+
+            # get code step original data
             for line in lines:
                 if read_fifo_count > 0:
                     if match_wait:
                         if line.find('reg_addr:0xff') > 0:
                             read_reg = search(r'val:0x(\w+)', line)
-                            reg_hex_value = read_reg.group(1)
-                            reg_hex_value = "{:0>6s}".format(reg_hex_value)
+                            reg_hex_value = "{:0>6s}".format(read_reg.group(1))
 
                             # split the reg value into phase index and original data
                             if phase_index == int(reg_hex_value[0], 16):
