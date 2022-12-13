@@ -1,4 +1,4 @@
-__version__ = '2.0'
+__version__ = '3.0'
 
 import argparse
 import pathlib
@@ -32,6 +32,7 @@ def cli_help() -> argparse.Namespace:
     parser.add_argument('--out_dir',
                         '-o',
                         type=Path,
+                        default=Path.cwd(),
                         metavar='DIR',
                         help='output destination directory\n'
                              'default: current work dir',
@@ -42,6 +43,11 @@ def cli_help() -> argparse.Namespace:
                         choices=['Chroma3380P', 'ST25XX'],
                         help='select ate tester model\n'
                              'default: Chroma3380P',
+                        )
+    parser.add_argument('--head_file',
+                        '-hf',
+                        default='',
+                        help='file for generating the headline of output report',
                         )
     parser.add_argument("--version",
                         action='version',
@@ -261,14 +267,19 @@ class CsvProcessor:
     Collect and merge the csv files
     """
 
-    def __init__(self, ate_model, output_dir=None):
+    def __init__(self, ate_model, output_dir, head_file):
         self.__ate_model = ate_model
         self.__output_dir = ""
+        self.__head_file = ""
+
         if output_dir:
             self.__output_dir = Path(output_dir).resolve()
             self.__check_output_dir()
         else:
             self.__output_dir = Path.cwd()
+
+        if head_file:
+            self.__head_file = Path(head_file).resolve()
 
         self.__output_file = self.__get_output_file()
         self.__log_file_list = []
@@ -417,14 +428,17 @@ class CsvProcessor:
         Catch the data from every csv file,
         and store them into __report_database.
         """
-        for csv in self.__log_file_list:
-            try:
-                self.__add_report_head(csv)
-            except AssertionError:
-                print("WARN: get headline failed in file '{}'!!".format(csv))
-                continue
-            else:
-                break
+        if '' != self.__head_file:
+            self.__add_report_head(self.__head_file)
+        else:
+            for csv in self.__log_file_list:
+                try:
+                    self.__add_report_head(csv)
+                except AssertionError:
+                    print("WARN: get headline failed in file '{}'!!".format(csv))
+                    continue
+                else:
+                    break
 
         if 'Chroma3380P' == self.__ate_model:
             for csv in self.__log_file_list:
@@ -483,7 +497,7 @@ if __name__ == '__main__':
     # parse args
     args = cli_help()
 
-    proc = CsvProcessor(args.ate_model, args.out_dir)
+    proc = CsvProcessor(args.ate_model, args.out_dir, args.head_file)
 
     proc.state_print('start')
 

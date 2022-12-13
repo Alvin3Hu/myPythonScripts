@@ -18,7 +18,7 @@
 # print(type(time.ctime(current_time)))
 
 #####TODO:Path usage
-# from pathlib import *
+from pathlib import *
 # temp = Path.cwd().joinpath("file.csv")
 # print(temp)
 # temp1 = Path(temp)
@@ -39,6 +39,10 @@
 # print(dir)
 # print(type(dir))
 # print(temp.parent.name)
+demo_path = '../a'
+
+if demo_path:
+    print(Path(demo_path).resolve())
 
 #####TODO:List usage
 # head_line = [
@@ -307,12 +311,12 @@
 #     print("not in")
 
 # #####TODO: incorrect unused local variable warning feedback
-data = '0.1'
-float_data = 0
-try:
-    float_data = float(data)
-except ValueError:
-    print("WARN: the data '{}' not a digit !!".format(data))
-else:
-    print(float_data)
+# data = '0.1'
+# float_data = 0
+# try:
+#     float_data = float(data)
+# except ValueError:
+#     print("WARN: the data '{}' not a digit !!".format(data))
+# else:
+#     print(float_data)
 
