@@ -169,18 +169,150 @@
 # print(tuple_len)
 
 # #####TODO:zip usage
-a = "A,B,C,1,,\n"
-b = "a,b,c,None,2,\n"
-print(a.rstrip(',\n'))
-print(b.rstrip(',\n'))
-a = [str(x) for x in a.rstrip(',\n').split(',')]
-b = [str(x) for x in b.rstrip(',\n').split(',')]
-demo_list = ['-'.join(x) for x in zip(a, b)]
-print(demo_list)
-with open("./README.md", 'r') as f:
-    lines = f.readlines()
-for line in lines:
-    print(line)
-    item_list = [str(x) for x in line.split(' ')]
-    print(item_list)
+# a = "A,B,C,1,,\n"
+# b = "a,b,c,None,2,\n"
+# print(a.rstrip(',\n'))
+# print(b.rstrip(',\n'))
+# a = [str(x) for x in a.rstrip(',\n').split(',')]
+# b = [str(x) for x in b.rstrip(',\n').split(',')]
+# demo_list = ['-'.join(x) for x in zip(a, b)]
+# print(demo_list)
+# with open("./README.md", 'r') as f:
+#     lines = f.readlines()
+# for line in lines:
+#     print(line)
+#     item_list = [str(x) for x in line.split(' ')]
+#     print(item_list)
+
+# #####TODO:index usage
+# demo_list = [1,5,1,2,1,0,1,7,1,9,8]
+# find_num = 8
+# try:
+#     index = demo_list.index(find_num)
+# except ValueError as e:
+#     print("WARN: {}".format(e))
+# else:
+#     print("index of {} is {}".format(find_num, index))
+
+# #####TODO:dict usage
+# demo_dict = {
+#     '' : 1e+15,
+#     'a' : 2,
+#     1 : 3,
+# }
+# demo = ""
+# print(demo_dict[demo])
+
+# #####TODO:unicodedata usage
+# import unicodedata
+#
+# print(unicodedata.numeric('-2.0'))
+
+# #####TODO:float usage
+# demo_digit = '-1e+3'
+# print(float(demo_digit) + 1)
+
+# #####TODO:strip usage
+# demo_str = 'mV'
+# unit = demo_str.rstrip('V')
+# print(unit)
+
+# #####TODO:list usage
+# unit_type = [
+#     'V',  # voltage
+#     'A',  # current
+#     'W',  # power
+#     'S',  # time
+#     'F',  # capacitance
+#     'HZ',  # frequency
+#     'R', 'OHM',  # resistance
+#     'LSB',  # Least Significant Bit
+#     'DB',  # DeciBel
+#     'DBM',  # DeciBel per Milli watt
+# ]
+#
+# print ('V' in unit_type)
+#
+# demo_str = 'kHZ'
+# print('hz'.upper() in demo_str)
+
+# #####TODO:re usage
+# import re
+# unit_type_list = [
+#     'V',  # voltage
+#     'A',  # current
+#     'W',  # power
+#     'S',  # time
+#     'F',  # capacitance
+#     'HZ',  # frequency
+#     'R', 'OHM',  # resistance
+#     'LSB',  # Least Significant Bit
+#     'DB',  # DeciBel
+#     'DBM',  # DeciBel per Milli watt
+# ]
+#
+# demo_str = 'Hz'
+# for t in unit_type_list:
+#     if t in demo_str.upper():
+#         print("{} is found in {}".format(t, demo_str))
+#         print(r'^(\w)?{}$'.format(t))
+#         match = re.match(r'^(\w)?{}$'.format(t), demo_str, re.IGNORECASE)
+#         print(type(match))
+#         if not match is None:
+#             print(match.group(0))
+#             print(match.group(1))
+#         else:
+#             print("match is {}".format(match))
+#
+# def unit_split(unit_type_list, unit):
+#     """
+#     Split the unit into unit factor and unit type.
+#     """
+#     unit_factor = ""
+#     unit_type = ""
+#     for t in unit_type_list:
+#         if t in unit.upper():
+#             unit_type = t
+#             matched = re.match(r'^(\w)?{}$'.format(t), unit, re.IGNORECASE)
+#             if matched is None:
+#                 print("WARN: unit factor matched failed in '{}' !!".format(unit))
+#                 return None
+#             else:
+#                 if not matched.group(1) is None:
+#                     unit_factor = matched.group(1)
+#
+#     return unit_factor, unit_type
+#
+# demo_get = unit_split(unit_type_list, demo_str)
+# print(demo_get)
+
+# #####TODO:dict usage
+# factor_dict = {
+#     'M': 1e+6,
+#     'K': 1e+3,
+#     'k': 1e+3,
+#     '': 1,
+#     'm': 1e-3,
+#     'u': 1e-6,
+#     'n': 1e-9,
+#     'p': 1e-12,
+#     'f': 1e-15,
+# }
+#
+# demo_factor = 'a'
+#
+# if demo_factor in factor_dict:
+#     print("in")
+# else:
+#     print("not in")
+
+# #####TODO: incorrect unused local variable warning feedback
+data = '0.1'
+float_data = 0
+try:
+    float_data = float(data)
+except ValueError:
+    print("WARN: the data '{}' not a digit !!".format(data))
+else:
+    print(float_data)
 

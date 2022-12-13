@@ -1,7 +1,8 @@
-__version__ = '1.0'
+__version__ = '2.0'
 
 import argparse
 import pathlib
+import re
 import time
 from pathlib import *
 from re import *
@@ -62,6 +63,32 @@ class OutputContent:
                   "LOG_CTIME",
                   ]
 
+
+    # for unit conversion
+    __units = ['','','','']
+    __unit_type_list = [
+        'V',  # voltage
+        'A',  # current
+        'W',  # power
+        'S',  # time
+        'HZ',  # frequency
+        'R', 'OHM',  # resistance
+        'LSB',  # Least Significant Bit
+        'DB',  # DeciBel
+        'DBM',  # DeciBel per Milli watt
+    ]
+    __factor_dict = {
+        'M': 1e+6,
+        'K': 1e+3,
+        'k': 1e+3,
+        '': 1,
+        'm': 1e-3,
+        'u': 1e-6,
+        'n': 1e-9,
+        'p': 1e-12,
+        'f': 1e-15,
+    }
+
     @classmethod
     def add_head_item(cls, item):
         cls.__headline.append(str(item))
@@ -78,6 +105,49 @@ class OutputContent:
     @classmethod
     def get_head_item_list(cls):
         return tuple(cls.__headline)
+
+    @classmethod
+    def add_unit(cls, unit):
+        unit = str(unit).replace(' ','')
+        unit_split = cls.__unit_split(unit)
+        if unit_split is None:
+            print("WARN: unit '{}' is not recognizable!!".format(unit))
+        cls.__units.append(unit)
+
+    @classmethod
+    def add_unit_list(cls, unit_list):
+        for unit in unit_list:
+            cls.add_unit(unit)
+
+    @classmethod
+    def __unit_split(cls, unit):
+        """
+        Split the unit into unit factor and unit type.
+        """
+        unit_factor = ""
+        unit_type = ""
+        if "" == unit:
+            return "", None
+        elif len(unit) == 1:
+            if unit.lower() in cls.__factor_dict:
+                return unit, None
+
+        # if len(unit) > 1 and unit just have only 1 char but not factor
+        for t in cls.__unit_type_list:
+            if t in unit.upper():
+                unit_type = t
+                matched = re.match(r'^(\w)?{}$'.format(t), unit, re.IGNORECASE)
+                if matched is None:
+                    print("WARN: unit factor matched failed in '{}' !!".format(unit))
+                    return None
+                else:
+                    if not matched.group(1) is None:
+                        unit_factor = matched.group(1)
+                        if not unit_factor in cls.__factor_dict:
+                            print("WARN: unit factor '{}' is not recognizable !!".format(unit))
+                            return None
+
+        return unit_factor, unit_type
 
     def __init__(self, log_file):
         self.__log_file = Path(log_file)
@@ -112,12 +182,75 @@ class OutputContent:
     def ctime(self):
         return self.__ctime
 
-    def add_data(self, data):
-        self.__data.append(str(data))
+    def __unit_conversion(self, data, unit):
+        """
+        Data conversion refer to current unit and predefined unit.
+        """
+        # if no data
+        if '' == data:
+            return data
 
-    def add_data_list(self, data_list):
-        data_list = [str(x) for x in data_list]
-        self.__data.extend(data_list)
+        # if data is not a digit, so it won't be calculated
+        float_data = 0
+        try:
+            float_data = float(data)
+        except ValueError:
+            print("WARN: the data '{}' not a digit !!".format(data))
+            return data
+
+        # get the predefined unit
+        next_data_index = len(self.__data)
+        predefined_unit = self.__units[next_data_index]
+
+        # delete the empty char in unit
+        unit = unit.replace(' ','')
+        if predefined_unit == unit:
+            return data
+
+        # data conversion if unit is not equal to predefined unit
+        # get unit type and factor
+        unit_factor = ""
+        unit_type = ""
+        unit_split = self.__unit_split(unit)
+        if not unit_split is None:
+            unit_factor = unit_split[0]
+            unit_type = unit_split[1]
+        else:
+            print("WARN: unit factor and type matched failed in '{}' !!".format(unit))
+            return data
+
+        # get predefined unit type and factor
+        predefined_unit_factor = ""
+        predefined_unit_type = ""
+        unit_split = self.__unit_split(predefined_unit)
+        if not unit_split is None:
+            predefined_unit_factor = unit_split[0]
+            predefined_unit_type = unit_split[1]
+        else:
+            print("WARN: predefined unit factor and type matched failed in '{}' !!".format(predefined_unit))
+            return data
+
+        if unit_type == predefined_unit_type:
+            float_data = float_data * self.__factor_dict[unit_factor] / self.__factor_dict[predefined_unit_factor]
+            if self.__factor_dict[unit_factor] < self.__factor_dict[predefined_unit_factor]:
+                float_data = float("{:.6f}".format(float_data))
+            print("MSG: '{} {}' is converted into '{} {}'"
+                  .format(data, unit, float_data, predefined_unit))
+            return float_data
+        else:
+            print("WARN: different between the types of unit '{}' and predefined unit '{}' !!".format(unit, predefined_unit))
+            return data
+
+    def add_data(self, data, unit):
+        new_data = self.__unit_conversion(data, unit)
+        if new_data is None:
+            self.__data.append(str(data))
+        else:
+            self.__data.append(str(new_data))
+
+    def add_data_list(self, data_list, unit_list):
+        for index in range(len(data_list)):
+            self.add_data(data_list[index], unit_list[index])
 
     def get_line_content_list(self):
         return tuple(self.__data)
@@ -200,8 +333,8 @@ class CsvProcessor:
                 raise AssertionError("location row not matched in file '{}'"
                                      .format(csv_file))
 
-            location_line = \
-                [str(x) for x in lines[location_row_index].rstrip(',\n').split(',')]
+            unit_line = \
+                [str(x) for x in lines[location_row_index].rstrip('\n').split(',')]
             test_suite_line = \
                 [str(x) for x in lines[location_row_index-5].rstrip(',\n').split(',')]
             test_spec_line = \
@@ -210,16 +343,18 @@ class CsvProcessor:
 
             for i in range(len(headline)):
                 if '-' == headline[i]:
-                    headline[i] = location_line[i]
+                    headline[i] = unit_line[i]
+                    unit_line[i] = ''
 
             OutputContent.add_head_item_list(headline)
+            OutputContent.add_unit_list(unit_line)
 
         elif 'ST25XX' == self.__ate_model:
             print("WARN: ate_model '{}' not support yet!!".format(self.__ate_model))
         else:
             raise AttributeError ("'{}' ate_model not support!".format(self.__ate_model))
 
-        print("MSG: generate merged csv headline successfully --")
+        print("MSG: generate merged csv headline successfully by {} --".format(csv_file))
 
     def __parse_chroma3380p_csv(self, csv_path):
         """
@@ -232,11 +367,12 @@ class CsvProcessor:
 
         match_serial = False
         data_line_count = 0
+        unit_item_list = []
         for line in lines:
             if match_serial:
                 data_item_list = line.rstrip(',\n').split(',')
                 data_content = OutputContent(csv_path)
-                data_content.add_data_list(data_item_list)
+                data_content.add_data_list(data_item_list, unit_item_list)
 
                 # store the data_content into report_database
                 line_content = data_content.get_line_content_list()
@@ -253,6 +389,12 @@ class CsvProcessor:
 
             elif match(r'^Serial#,', line):
                 match_serial = True
+                unit_item_list = line.rstrip('\n').split(',')
+
+                # process the unit with '#' as suffix
+                for index in range(len(unit_item_list)):
+                    if unit_item_list[index].find('#') > 0:
+                        unit_item_list[index] = ''
             else:
                 continue
 
