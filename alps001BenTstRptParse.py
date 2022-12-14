@@ -1,4 +1,11 @@
-__version__ = '1.1'
+__version__ = '2.0'
+"""History
+Version    Date         Author          Description
+2.0        20221214     Alvin3Hu        1.Replace modify time with create time of csv file;
+                                        2.Add extend attribute for '--dir' parameter to support multi dir process at
+                                          the same time.
+                                        3.Add the default dir for '--out_dir' parameter as work dir.
+"""
 
 import argparse
 import pathlib
@@ -25,12 +32,14 @@ def cli_help() -> argparse.Namespace:
                         )
     parser.add_argument('--dir',
                         '-d',
+                        nargs='+',
                         type=Path,
                         help='directory including test log files',
                         )
     parser.add_argument('--out_dir',
                         '-o',
                         type=Path,
+                        default=Path.cwd(),
                         metavar='DIR',
                         help='output destination directory\n'
                              'default: current work dir',
@@ -61,7 +70,7 @@ class BenchTestData:
     Collect and parse the bench test log for report generation.
     """
 
-    def __init__(self, device_version, test_item, output_dir=None):
+    def __init__(self, device_version, test_item, output_dir):
         self.__device_version = device_version
         self.__test_item = test_item
         self.__output_dir = ""
@@ -148,13 +157,13 @@ class BenchTestData:
             self.__name = str(self.__log_file.stem)
             self.__suffix = str(self.__log_file.suffix)
             self.__size = str(self.__log_file.stat().st_size)
-            self.__ctime = time.ctime(self.__log_file.stat().st_ctime)
+            self.__mtime = time.ctime(self.__log_file.stat().st_mtime)
             self.__data = [
                            self.__dir,
                            self.__name,
                            self.__suffix,
                            self.__size,
-                           self.__ctime,
+                           self.__mtime,
                            ]
 
         @property
@@ -179,7 +188,7 @@ class BenchTestData:
 
         @property
         def ctime(self):
-            return self.__ctime
+            return self.__mtime
 
         def add_data(self, data):
             self.__data.append(str(data))
@@ -405,17 +414,17 @@ if __name__ == '__main__':
 
     proc.state_print('load files in dir')
     if args.dir:
-        in_dir = args.dir
-        if Path(in_dir).is_dir():
-            print("MSG: enter dir '%s' --" % in_dir)
-        else:
-            raise FileNotFoundError("input dir '%s' not exist !!!" % in_dir)
+        for in_dir in args.dir:
+            if Path(in_dir).is_dir():
+                print("MSG: enter dir '%s' --" % in_dir)
+            else:
+                raise FileNotFoundError("input dir '%s' not exist !!!" % in_dir)
 
-        file_list = []
-        [file_list.append(str(f)) for f in Path(in_dir).glob('*.txt')]
+            file_list = []
+            [file_list.append(str(f)) for f in Path(in_dir).glob('*.txt')]
 
-        for file in file_list:
-            proc.add_log_file(file)
+            for file in file_list:
+                proc.add_log_file(file)
 
     proc.state_print('parse logs')
 

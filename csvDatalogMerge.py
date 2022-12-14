@@ -1,4 +1,15 @@
 __version__ = '3.0'
+"""History
+Version    Date         Author          Description
+3.0        20221214     Alvin3Hu        1.Replace modify time with create time of csv file;
+                                        2.Add extend attribute for '--dir' parameter to support multi dir process at
+                                          the same time.
+                                        3.Change '-' into ':' in head items of output report headline,
+                                          and add the unit info at the end of every head item;
+                                        4.Comment the unit conversion message print;
+                                        5.Add line number info in warning of data line item count doesn't match
+                                          the headline;
+"""
 
 import argparse
 import pathlib
@@ -26,6 +37,7 @@ def cli_help() -> argparse.Namespace:
                         )
     parser.add_argument('--dir',
                         '-d',
+                        nargs='+',
                         type=Path,
                         help='directory including test log files',
                         )
@@ -66,7 +78,7 @@ class OutputContent:
                   "LOG_DIR",
                   "LOG_NAME",
                   "LOG_SIZE",
-                  "LOG_CTIME",
+                  "LOG_MTIME",
                   ]
 
 
@@ -160,12 +172,12 @@ class OutputContent:
         self.__dir = str(self.__log_file.parent)
         self.__name = str(self.__log_file.stem)
         self.__size = str(self.__log_file.stat().st_size)
-        self.__ctime = time.ctime(self.__log_file.stat().st_ctime)
+        self.__mtime = time.ctime(self.__log_file.stat().st_mtime)
         self.__data = [
             self.__dir,
             self.__name,
             self.__size,
-            self.__ctime,
+            self.__mtime,
         ]
 
     @property
@@ -186,7 +198,7 @@ class OutputContent:
 
     @property
     def ctime(self):
-        return self.__ctime
+        return self.__mtime
 
     def __unit_conversion(self, data, unit):
         """
@@ -238,13 +250,14 @@ class OutputContent:
 
         if unit_type == predefined_unit_type:
             float_data = float_data * self.__factor_dict[unit_factor] / self.__factor_dict[predefined_unit_factor]
-            if self.__factor_dict[unit_factor] < self.__factor_dict[predefined_unit_factor]:
-                float_data = float("{:.6f}".format(float_data))
-            print("MSG: '{} {}' is converted into '{} {}'"
-                  .format(data, unit, float_data, predefined_unit))
+            float_data = float("{:.6f}".format(float_data))
+            # next_head_item = self.__headline[next_data_index]
+            # print("MSG: '{} {}' is converted into '{} {}' for '{}' --"
+            #       .format(data, unit, float_data, predefined_unit, next_head_item))
             return float_data
         else:
-            print("WARN: different between the types of unit '{}' and predefined unit '{}' !!".format(unit, predefined_unit))
+            print("WARN: different between the types of unit '{}' and predefined unit '{}' !!"
+                  .format(unit, predefined_unit))
             return data
 
     def add_data(self, data, unit):
@@ -350,12 +363,14 @@ class CsvProcessor:
                 [str(x) for x in lines[location_row_index-5].rstrip(',\n').split(',')]
             test_spec_line = \
                 [str(x) for x in lines[location_row_index-4].rstrip(',\n').split(',')]
-            headline = ['-'.join(x) for x in zip(test_suite_line, test_spec_line)]
+            headline = [':'.join(x) for x in zip(test_suite_line, test_spec_line)]
 
             for i in range(len(headline)):
-                if '-' == headline[i]:
+                if ':' == headline[i]:
                     headline[i] = unit_line[i]
                     unit_line[i] = ''
+                else:
+                    headline[i] += ":{}".format(unit_line[i])
 
             OutputContent.add_head_item_list(headline)
             OutputContent.add_unit_list(unit_line)
@@ -379,7 +394,8 @@ class CsvProcessor:
         match_serial = False
         data_line_count = 0
         unit_item_list = []
-        for line in lines:
+        for i in range(len(lines)):
+            line = lines[i]
             if match_serial:
                 data_item_list = line.rstrip(',\n').split(',')
                 data_content = OutputContent(csv_path)
@@ -392,8 +408,8 @@ class CsvProcessor:
                 # check if line_content item count equal headline
                 head_item_count = data_content.get_head_item_count()
                 if not len(line_content) == head_item_count:
-                    print("WARN: data line content count '{}' less than headline '{}' in file '{}'!"
-                          .format(len(line_content), head_item_count, csv_path))
+                    print("WARN: data line content count '{}' less than headline '{}' in file '{}' at line '{}'!"
+                          .format(len(line_content), head_item_count, csv_path, i))
 
                 # count data line
                 data_line_count += 1
@@ -508,17 +524,17 @@ if __name__ == '__main__':
 
     proc.state_print('load files in dir')
     if args.dir:
-        in_dir = args.dir
-        if Path(in_dir).is_dir():
-            print("MSG: enter dir '%s' --" % in_dir)
-        else:
-            raise FileNotFoundError("input dir '%s' not exist !!!" % in_dir)
+        for in_dir in args.dir:
+            if Path(in_dir).is_dir():
+                print("MSG: enter dir '%s' --" % in_dir)
+            else:
+                raise FileNotFoundError("input dir '%s' not exist !!!" % in_dir)
 
-        file_list = []
-        [file_list.append(str(f)) for f in Path(in_dir).glob('*.csv')]
+            file_list = []
+            [file_list.append(str(f)) for f in Path(in_dir).glob('*.csv')]
 
-        for file in file_list:
-            proc.add_log_file(file)
+            for file in file_list:
+                proc.add_log_file(file)
 
     proc.state_print('merge csv files')
 
